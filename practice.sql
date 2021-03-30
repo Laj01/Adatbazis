@@ -526,7 +526,14 @@ select sz.szerzo_azon, vezeteknev, keresztnev, sum(nvl(honorarium,0))
     having sum(nvl(honorarium,0)) = (select max(sum(nvl(honorarium,0)))
                                         from konyvtar.szerzo sz left outer join konyvtar.konyvszerzo ksz
                                         on sz.szerzo_azon=ksz.szerzo_azon
-                                        group by sz.szerzo_azon);                            
+                                        group by sz.szerzo_azon);  
+
+--Olyan könyveket keresek, amelyek ára nagyobb, mint bármely krimi témájú könyv ára.                                        
+select ar, cim, tema
+    from konyvtar.konyv
+    where ar>any(select ar
+                from konyvtar.konyv
+                where tema='krimi');
                             
 select szin, elso_vasarlasi_ar
     from SZERELO.sz_auto
@@ -535,3 +542,93 @@ select szin, elso_vasarlasi_ar
                                             group by szin)
     order by elso_vasarlasi_ar;
 
+select *
+    from (select marka, count(megnevezes) 
+            from SZERELO.sz_autotipus
+            group by marka
+            order by marka desc)
+    where rownum < 6;
+    
+--Legdrágább elsõ vásárlási árral rendelkezõ autó tulajdonosának neve?
+select tu.nev, a.elso_vasarlasi_ar
+    from SZERELO.sz_auto a inner join szerelo.sz_auto_tulajdonosa at on a.azon = at.auto_azon
+    inner join szerelo.sz_tulajdonos tu on at.tulaj_azon = tu.azon
+    where a.elso_vasarlasi_ar = (select max(szerelo.sz_auto.elso_vasarlasi_ar)
+                                    from SZERELO.sz_auto);    
+                                    
+--Melyik szerelõ keresi a legtöbbet?
+select nev, havi_fizetes
+    from szerelo.sz_szerelo sz left join SZERELO.sz_dolgozik do on sz.azon = do.szerelo_azon
+    where havi_fizetes = (select max(SZERELO.sz_dolgozik.havi_fizetes)
+                            from SZERELO.sz_dolgozik);
+
+--Szerelõk összfizetése?
+select sz.azon, sum(nvl(d.havi_fizetes, 0))
+    from SZERELO.sz_szerelo sz left join szerelo.sz_dolgozik d on sz.azon = d.szerelo_azon
+    group by sz.azon
+    order by sum(nvl(d.havi_fizetes, 0)) desc;
+
+--///////////////////////////////////////////////////////////////////////////////////////-------
+
+--01-----------
+select marka, count(megnevezes)
+    from SZERELO.sz_autotipus
+    group by marka
+    order by marka;
+    
+--02--Listázza ki azoknak az autóknak a rendszámát és elsõ vásárlási idõpontját, amelyeket 2011-ben, 2009-ben vagy 2005-ben vásároltak meg elõször!
+
+select rendszam, to_char(elso_vasarlas_idopontja, 'yyyy.mm.dd') elso_vasarlas
+    from szerelo.sz_auto
+    where extract(year from elso_vasarlas_idopontja) in (2011, 2009, 2005);
+    
+--03--Listázza ki, hogy az elsõ tulajdonosok (elsõ) vásárlási költségként mennyit költöttek az autóikra! 
+--A lista legyen a tulajdonos neve szerint növekvõ, azon belül költség szerint csökkenõ sorrendbe rendezve!
+select *
+    from SZERELO.sz_tulajdonos t inner join szerelo.sz_auto_tulajdonosa at on t.azon = at.tulaj_azon
+    inner join szerelo.sz_auto a on at.auto_azon = a.azon;
+
+
+--04--Listázza ki azoknak az autóknak az azonosítóját, színét és rendszámát, amelyeknek nem ismert az elsõ vásárlási áruk, 
+--vagy a rendszámuk két darab nullára végzõdik! A lista szín, azon belül rendszám szerint legyen rendezett!
+select azon, szin, rendszam
+    from szerelo.sz_auto
+    where elso_vasarlasi_ar is null
+    or rendszam like '%00'
+    order by szin, rendszam;
+    
+--05--Listázza ki azoknak az autófelértékeléseknek az adatait, amelyek értéke legalább 1,5 MFt-tal kisebb az átlagnál!
+select *
+    from SZERELO.sz_autofelertekeles
+    where ertek <= (select avg(ertek)-1500000
+                        from SZERELO.sz_autofelertekeles);
+                        
+--06--Listázza ki az autószíneket, és azt, hogy az adott színû autókat átlagosan mennyiért szerelték! 
+--A listát rendezze az átlagos munkavégzési ár szerint csökkenõen!
+
+select a.szin, avg(sz.munkavegzes_ara) atlag
+    from SZERELO.sz_auto a left join SZERELO.sz_szereles sz on a.azon = sz.auto_azon
+    group by a.szin
+    order by avg(sz.munkavegzes_ara) desc;
+    
+--07--Kérdezze le a 'Bekõ Antal' nevû szerelõ telefonszámát!
+select telefon
+    from szerelo.sz_szerelo
+    where nev = 'Bekõ Antal';
+    
+--08--Mely autókat értékelték 2002-ben? Az autókat a rendszámukkal adja meg, egy autót csak egyszer!
+select distinct rendszam
+    from szerelo.sz_auto a left join SZERELO.sz_autofelertekeles af on a.azon = af.auto_azon
+    where extract(year from af.datum) = 2002; 
+    
+--09--Mely autótulajdonosok vásároltak már 3-nál többször autót? A tulajdonosokat az azonosítójukkal adja meg!
+select t.azon, count(at.vasarlas_ideje) vasarlasok_szama
+    from szerelo.sz_tulajdonos t left join SZERELO.sz_auto_tulajdonosa at on t.azon = at.tulaj_azon
+    group by t.azon
+    having count(at.vasarlas_ideje) > 3;
+    
+--10--Írja ki a 178-as azonosítójú autó elsõ tulajdonosának a nevét!
+select t.nev
+    from szerelo.sz_auto a inner join SZERELO.sz_auto_tulajdonosa at on a.azon = at.auto_azon
+    inner join SZERELO.sz_tulajdonos t on at.tulaj_azon = t.azon
+    where a.azon = 178;
