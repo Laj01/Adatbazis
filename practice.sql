@@ -462,3 +462,76 @@ select k.cim, vezeteknev || keresztnev, to_char(kolcsonzesi_datum, 'yyyy.mm.dd')
 select count(distinct extract (month from szuletesi_datum))
     from konyvtar.szerzo;   
     
+select k.konyv_azon, k.cim, kk.leltari_szam
+    from KONYVTAR.konyv k inner join KONYVTAR.konyvtari_konyv kk on k.konyv_azon = kk.konyv_azon;
+    
+select leltari_szam 
+    from KONYVTAR.tag t left join konyvtar.kolcsonzes k on t.olvasojegyszam = k.tag_azon
+    where t.vezeteknev||t.keresztnev = 'ÁcsiMilán'
+    and k.visszahozasi_datum is null;
+    
+select kk.leltari_szam, k.cim
+    from KONYVTAR.konyvtari_konyv kk inner join konyvtar.konyv k on kk.konyv_azon = k.konyv_azon
+    where k.cim = 'Tíz kicsi néger';
+    
+select k.cim, sz.vezeteknev||sz.keresztnev
+    from konyvtar.konyv k inner join konyvtar.konyvszerzo ksz on k.konyv_azon = ksz.konyv_azon
+    inner join konyvtar.szerzo sz on ksz.szerzo_azon = sz.szerzo_azon
+    where tema in ('sci-fi', 'krimi', 'horror');
+    
+select vezeteknev||keresztnev
+    from KONYVTAR.tag
+    where szuletesi_datum <(select szuletesi_datum
+                                from konyvtar.tag
+                                where vezeteknev||keresztnev = 'AgyaláGyula');
+                                
+select count(distinct szerzo_azon)
+    from KONYVTAR.konyv k inner join konyvtar.konyvszerzo ksz on k.konyv_azon = ksz.konyv_azon
+    where k.ar < 5000;
+    
+select kiado, sum(honorarium)
+    from konyvtar.konyv kv inner join konyvtar.konyvszerzo ksz
+    on kv.konyv_azon=ksz.konyv_azon
+    group by kiado
+    having sum(nvl(honorarium,0))<1000000
+    order by kiado;
+    
+select vezeteknev||keresztnev
+    from konyvtar.szerzo
+    where szuletesi_datum = (select min(szuletesi_datum)
+                                from konyvtar.szerzo);
+                                
+select leltari_szam
+    from KONYVTAR.konyvtari_konyv
+    where konyv_azon in (select konyv_azon
+                            from KONYVTAR.konyv
+                            where cim = 'Napóleon');
+
+select vezeteknev||keresztnev
+    from konyvtar.tag
+    where szuletesi_datum = (select max(szuletesi_datum)
+                                from konyvtar.tag
+                                where nem = 'n')
+    and nem = 'n';
+    
+select tema, cim
+    from konyvtar.konyv
+    where (tema, ar) in (select tema, max(ar)
+                            from konyvtar.konyv
+                            group by tema);
+                            
+select sz.szerzo_azon, vezeteknev, keresztnev, sum(nvl(honorarium,0))
+    from konyvtar.szerzo sz left outer join konyvtar.konyvszerzo ksz on sz.szerzo_azon=ksz.szerzo_azon
+    group by sz.szerzo_azon, vezeteknev, keresztnev
+    having sum(nvl(honorarium,0)) = (select max(sum(nvl(honorarium,0)))
+                                        from konyvtar.szerzo sz left outer join konyvtar.konyvszerzo ksz
+                                        on sz.szerzo_azon=ksz.szerzo_azon
+                                        group by sz.szerzo_azon);                            
+                            
+select szin, elso_vasarlasi_ar
+    from SZERELO.sz_auto
+    where (szin, elso_vasarlasi_ar) in (select szin, max(elso_vasarlasi_ar)
+                                            from SZERELO.sz_auto
+                                            group by szin)
+    order by elso_vasarlasi_ar;
+
