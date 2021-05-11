@@ -567,8 +567,213 @@ select sz.azon, sum(nvl(d.havi_fizetes, 0))
     from SZERELO.sz_szerelo sz left join szerelo.sz_dolgozik d on sz.azon = d.szerelo_azon
     group by sz.azon
     order by sum(nvl(d.havi_fizetes, 0)) desc;
+    
+    
+    
+--Listázzuk ki az 1980.03.02 elõtt született férfi tagok nevét és születési dátumát.
+select vezeteknev, keresztnev, szuletesi_datum
+    from konyvtar.tag
+    where nem = 'f'
+    and
+    szuletesi_datum < to_date('1980.03.02', 'yyyy.mm.dd');
+    
+--Listázzuk ki az 1940 és 1960 között született nõi tagok besorolását. Minden besorolás csak egyszer szerepeljen. Rendezzük a listát.
+select distinct besorolas
+    from konyvtar.tag
+    where nem = 'n'
+    and
+    extract(year from szuletesi_datum) between 1940 and 1960
+    order by besorolas;
 
---///////////////////////////////////////////////////////////////////////////////////////-------
+select tema, count(*)
+    from KONYVTAR.konyv
+    group by tema
+    order by tema nulls last;
+
+--89. Melyek azok a témák, amelyekben 3-nál több olyan könyvet adtak ki, amelyeknek az ára 1000 és 3000 között van?
+select tema, count(konyv_azon)
+    from konyvtar.konyv
+    where ar between 1000 and 3000
+    group by tema
+    having count(konyv_azon)>3;
+    
+--Besorolásonként és nemenként mennyi az átlagos tagdíj és a tagok száma?
+select besorolas, nem, avg(tagdij), count(olvasojegyszam)
+    from konyvtar.tag
+    group by besorolas, nem;
+    
+--A keresztnév elsõ két betûjeként csoportosítva hány nõi tag van? Rendezzük a listát darabszám szerint csökkenõen
+select substr(keresztnev, 1, 2), count(*)
+    from konyvtar.tag
+    where nem = 'n'
+    group by substr(keresztnev, 1, 2)
+    order by count(*) desc;
+    
+--Melyik témának kevesebb az összára 10000-nél?
+select tema, sum(ar)
+    from konyvtar.konyv
+    group by tema
+    having sum(ar)<10000;
+    
+--Melyik az a hónap (év nélkül), amikor 1-nél több szerzõ született?
+select extract(month from szuletesi_datum), count(*)
+    from konyvtar.szerzo
+    group by extract(month from szuletesi_datum)
+    having count(*) > 1
+    order by extract(month from szuletesi_datum) nulls last;
+    
+select to_char(szuletesi_datum,'mm'), count(*)
+from konyvtar.szerzo
+group by to_char(szuletesi_datum,'mm')
+having count(*)>1
+order by to_char(szuletesi_datum,'mm') nulls last;
+    
+--Listázzuk egy listában a szerzõk keresztnevét és születési hónapját illetve a tagok keresztnevét és születési hónapját. Minden név, hónap páros csak
+--egyszer szerepeljen
+select vezeteknev, to_char(szuletesi_datum, 'mm')
+    from konyvtar.szerzo
+    union
+select vezeteknev, to_char(szuletesi_datum, 'mm')
+    from konyvtar.tag;
+    
+create table szemely
+(azon number(5),
+nev varchar2(30) not null,
+szul_dat date,
+irsz char(4),
+cim varchar2(40),
+zsebpenz number(12,2),
+constraint sz_pk primary key (azon),
+constraint sz_u unique (nev, szul_dat, cim),
+constraint sz_ch check (zsebpenz>100));
+
+drop table gyerekek;
+drop table sz_auto;
+drop table sz_auto_tulajdonosa;
+drop table tag;
+
+insert into szemely (azon, nev, szul_dat, irsz, cim, zsebpenz)
+values (10,'Kiss Béla',
+to_date('20100101 20:01','yyyymmdd hh24:mi'), '4028',
+'Debrecen',null);
+    
+insert into szemely (azon, nev, szul_dat, irsz, cim, zsebpenz)
+values (20,'Kiss Eszter',to_date('20100101 20:01','yyyymmdd hh24:mi'), '4028','Debrecen',null);
+commit;
+    
+insert into szemely (azon, nev, szul_dat, irsz, cim, zsebpenz)
+    values (30,'Nagy Tibor', to_date('20100101 20:01','yyyymmdd hh24:mi'), '4028', 'Debrecen',120.32);
+    commit;
+
+
+create table bicikli
+(azon number(5),
+szin varchar2(20),
+tulaj_azon number(5),
+constraint bi_pk primary key (azon),
+constraint bi_fk foreign key (tulaj_azon) references szemely (azon));
+
+alter table bicikli
+add (tipus varchar(20));
+
+alter table bicikli
+drop column tipus;
+--Nevezzük át
+alter table bicikli
+rename column tulaj_azon to t_azon;
+--módosítsuk az oszlop típusát
+alter table bicikli
+modify (szin varchar2(30));
+
+--Nevezzük át a megszorítást
+alter table szemely
+rename constraint sz_ch to sz_ck;
+
+--tábla átnevezés
+rename szemely to szemely2;
+
+alter table szemely2
+drop constraint sz_uq;
+
+alter table szemely
+add constraint sz_uq unique (nev, szul_dat, cim);
+--elsõdleges kulcs eldobása
+alter table bicikli
+drop primary key;
+--create table selecttel
+create table szerzok_konyvek as
+    select cim, vezeteknev, keresztnev, ar/oldalszam ar_per_oldalszam
+    from konyvtar.szerzo sz inner join konyvtar.konyvszerzo ksz
+    on sz.szerzo_azon=ksz.szerzo_azon
+    inner join konyvtar.konyv ko
+    on ksz.konyv_azon=ko.konyv_azon;
+    
+create view v_szerzo as
+    select vezeteknev, keresztnev, cim, ar/oldalszam oldalankenti_ar
+    from konyvtar.szerzo sz inner join konyvtar.konyvszerzo ksz
+        on sz.szerzo_azon = ksz.szerzo_azon
+    inner join konyvtar.konyv k
+        on ksz.konyv_azon = k.konyv_azon;
+        
+create view v_felos_konyvek as
+    select cim, leltari_szam, ar/oldalszam oldalankenti_ar
+    from KONYVTAR.konyv ko inner join konyvtar.konyvtari_konyv kk on ko.konyv_azon = kk.konyv_azon 
+    where tema in ('horror','sci-fi','krimi');
+    
+    
+create table konyv as
+    select * from konyvtar.konyv;
+    
+delete from konyv
+    where konyv_azon not in (select konyv_azon from konyvtar.konyvtari_konyv);
+    
+update konyvszerzo ksz
+set honorarium=honorarium+(select ar/2
+                            from konyvtar.konyv ko
+                            where ko.konyv_azon=ksz.konyv_azon)
+    where konyv_azon in (select konyv_azon
+                            from konyvtar.konyv
+                            where kiado like '%KIADÓ%')
+    and szerzo_azon in (select szerzo_azon
+                        from konyvtar.szerzo
+                        where szuletesi_datum>to_date('1900','yyyy'));
+commit;
+
+
+insert into kolcsonzes(kolcsonzesi_datum, tag_azon, leltari_szam)
+    select sysdate, olvasojegyszam, leltari_szam
+    from konyvtar.tag, konyvtar.konyvtari_konyv
+    where szuletesi_datum=(select min(szuletesi_datum)
+                            from konyvtar.tag)
+    and konyv_azon in (select konyv_azon
+                        from konyvtar.konyv
+                        and (ertek, konyv_azon) in (select max(ertek), konyv_azon
+                                                    from konyvtar.konyvtari_konyv
+                                                    where konyv_azon in (select konyv_azon
+                                                                            from konyvtar.konyv
+                                                                            whercim='Napóleon')
+                                                    group by konyv_azon) ;
+                                                    
+
+--Töröljük azokat a könyveket, amelyekhez nem tartozik konyvszerzo, és nem tartozik konyvtari_konyv, és 5000-nél olcsóbbak vagy nincs áruk.
+delete
+    from konyv
+    where konyv_azon not in (select konyv_azon from konyvtar.konyvszerzo)
+    and konyv_azon not in (select konyv_azon from konyvtar.konyvtari_konyv)
+    and (ar is null or ar<5000);
+
+--Töröljük azokat a könyszerzõbeli sorokat, amelyek esetén a honorárium kisebb, mint a hozzá kapcsolódó könyv árának a 10-szerese.
+delete
+    from konyvszerzo ksz
+    where honorarium<(select ar*10
+                        from konyvtar.konyv ko
+                        where ksz.konyv_azon=ko.konyv_azon);
+commit;
+
+
+--///////////////////////////////////////////////////////////////////////////////////////--------
+--///////////////////////////////////////////////////////////////////////////////////////--------
+--///////////////////////////////////////////////////////////////////////////////////////--------
 
 --01-----------
 select marka, count(megnevezes)
@@ -632,3 +837,40 @@ select t.nev
     from szerelo.sz_auto a inner join SZERELO.sz_auto_tulajdonosa at on a.azon = at.auto_azon
     inner join SZERELO.sz_tulajdonos t on at.tulaj_azon = t.azon
     where a.azon = 178;
+    
+-- Ha a feladat szövegében szerepel az 
+--"listázzuk ki az ÖSSZES....." szó, akkor outer join, ha nem, akkor inner join
+-- 10 legolcsóbb, leg, leg, leg.......ROWNUM
+--Tegyük egy listába...... HALMAZMÛVELETEK
+--Szúrjuk be....INSERT INTO
+--Módosítsuk / Növelük meg........UPDATE sz_auto
+
+--01--
+
+
+--02--
+
+
+--03--
+
+
+--04--
+
+
+--05--
+
+
+--06--
+
+
+--07--
+
+
+--08--
+
+
+--09--
+
+
+--10--
+
