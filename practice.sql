@@ -845,32 +845,66 @@ select t.nev
 --Szúrjuk be....INSERT INTO
 --Módosítsuk / Növelük meg........UPDATE sz_auto
 
---01--
+--01--Adja meg azon mûhelyek azonosítóját és nevét, ahol nem dolgozik és nem is dolgozott egri szerelõ (akinek a címe úgy kezdõdik, hogy 'Eger')!
+select azon, nev
+    from szerelo.sz_szerelomuhely szm join szerelo.sz_szerelo sz on szm.azon = sz.azon 
+    where szm.azon not in (select azon
+                            from szerelo.sz_szerelo
+                            where cim like 'Eger%');
+
+--02--Törölje azoknak az autóknak a felértékelési adatait, amelyeknek a rendszáma nem pontosan 6 karakterbõl áll!
+create table sz_autofelertekeles as
+select * from szerelo.sz_autofelertekeles;
+
+delete from sz_autofelertekeles
+    where auto_azon in (select azon from szerelo.sz_auto
+                                where rendszam not like '______');
+
+--03--Szúrja be a 'szerelo' sémából a saját sémájának 'sz_tulajdonos' táblájába azokat a tulajdonosokat, akiknek volt vagy van Toyota márkájú autójuk!
+create table sz_tulajdonos as
+    select * from szerelo.sz_tulajdonos;
+
+    
 
 
---02--
+--04--Adjon beszúrási jogosultságot a 'dzsoni' nevû felhasználónak az ön 'sz_tulajdonos' táblájának 'azon' és 'nev' oszlopaira!
+grant insert on sz_tulajdonos( azon, nev)  to dzsoni;
+
+--05--Törölje az 'sz_tulajdonos' és az 'sz_auto_tulajdonosa' táblákat! Vegye figyelembe az egyes táblákra hivatkozó külsõ kulcsokat! A feladat megoldásához több utasítást is használhat.
+
+drop table sz_tulajdonos ;
+drop table sz_auto_tulajdonosa cascade constraint;
+
+--06--Listázza ki a szerelõk nevét, valamint hogy mely mûhelyekben dolgoztak, és ott mennyi volt a havi fizetésük! A mûhelyeket az azonosítójukkal adja meg! A listában szerepeljenek azok a szerelõk is, akik sosem dolgoztak, vagy nincs megadva a fizetésük!
+select sz.nev, d.muhely_azon, d.havi_fizetes from
+    szerelo.sz_szerelo sz full outer join szerelo.sz_dolgozik d on sz.azon = d.szerelo_azon;
+
+--07--Hozzon létre egy 'biztositas' nevû táblát, amely tartalmazza a biztosítás számát (pontosan 10 karakteres sztring; ez az elsõdleges kulcs)
+--, az autó azonosítóját (legfeljebb 5 jegyû egész)-
+--, a tulajdonos azonosítóját (legfeljebb 5 jegyû egész) 
+--és e-mail-címét (legfeljebb 40 karakteres sztring), -
+--a biztosítás kezdetét és végét (dátumok), 
+--valamint a havi összeget (legfeljebb 5 jegyû egész)! 
+--A tábla hivatkozzon az 'sz_tulajdonos' és az 'sz_auto' táblákra, és az e-mail-cím legyen egyedi! Az elsõdleges kulcs megszorítást nevezze el!
+create table biztositas
+( szam char(10),
+auto_azon number(5),
+tulaj_azon number(5),
+email varchar(40),
+biztositas_kezdete date,
+biztositas_vege date,
+havi_osszeg number(5),
+constraint b_pk primary key (szam),
+constraint b_uq unique (email));
+
+drop table biztositas cascade constraints;
+
+--08--Listázza ki azoknak az autótípusoknak az azonosítóját és az ilyen típusú autók átlagos felértékelési összegét, amelyeknél ez az átlag a legkisebb 3 érték közé esik!
 
 
---03--
+--09--Hozzon létre nézetet, amely megadja azoknak az autótípusoknak a megnevezését, amelyekbõl a legtöbb autó létezik az adatbázisban!
 
 
---04--
-
-
---05--
-
-
---06--
-
-
---07--
-
-
---08--
-
-
---09--
-
-
---10--
-
+--10--Hozzon létre nézetet, amely megadja, hogy az egyes mûhelyvezetõk melyik mûhelyt vezetik, illetve melyik más mûhelyekben dolgoztak már! A vezetõket és a mûhelyeket is a nevükkel adja meg!
+create view v_vezeto as
+    select
